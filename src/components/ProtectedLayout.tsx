@@ -23,7 +23,7 @@ const ITENS: Item[] = [
   { to: '/membros', label: 'Membros & Funções', icon: UserCog, papeis: ['admin_geral', 'comissao'] },
   { to: '/jogadores', label: 'Jogadores', icon: Users },
   { to: '/financeiro', label: 'Financeiro', icon: Wallet },
-  { to: '/partidas', label: 'Partidas', icon: CalendarDays, emBreve: true },
+  { to: '/partidas', label: 'Partidas', icon: CalendarDays },
   { to: '/rankings', label: 'Rankings', icon: Trophy, emBreve: true },
   { to: '/grupos', label: 'Grupos (plataforma)', icon: Building2, soSuper: true },
 ]
