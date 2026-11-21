@@ -235,6 +235,17 @@ alter table public.membros      enable row level security;
 alter table public.jogadores    enable row level security;
 alter table public.auditoria    enable row level security;
 
+-- GRANTs de tabela: o Supabase não concede automático em tabelas criadas via SQL.
+-- Sem isto o PostgREST devolve 42501 antes do RLS. (anon usa só os RPCs + Auth.)
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.usuarios     to authenticated;
+grant select, insert, update, delete on public.organizacoes to authenticated;
+grant select, insert, update, delete on public.membros      to authenticated;
+grant select, insert, update, delete on public.jogadores    to authenticated;
+grant select                         on public.auditoria     to authenticated;
+alter default privileges in schema public grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public grant usage, select on sequences to authenticated;
+
 -- usuarios: lê o próprio perfil (ou super); edita o próprio
 drop policy if exists usuarios_sel on public.usuarios;
 create policy usuarios_sel on public.usuarios for select
