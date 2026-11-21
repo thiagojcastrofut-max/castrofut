@@ -38,7 +38,9 @@ export function ProtectedLayout() {
   // Sem vínculo ativo e não é super-admin → vai para a tela "sem grupo"
   if (!superAdmin && !membroAtual) return <Navigate to="/sem-grupo" replace />
 
-  const orgNome = ativos.find((m) => m.org_id === orgId)?.organizacao?.nome || (superAdmin ? 'Plataforma' : '—')
+  const orgAtualObj = ativos.find((m) => m.org_id === orgId)?.organizacao
+  const orgNome = orgAtualObj?.nome || (superAdmin ? 'Plataforma' : '—')
+  const grupoPausado = !superAdmin && !!orgAtualObj && orgAtualObj.ativo === false
 
   const itensVisiveis = ITENS.filter((it) => {
     if (it.soSuper) return superAdmin
@@ -142,7 +144,17 @@ export function ProtectedLayout() {
           <span style={{ fontWeight: 700, fontSize: 14 }}>{orgNome}</span>
         </header>
         <main style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
-          <Outlet />
+          {grupoPausado ? (
+            <div className="card" style={{ padding: 30, textAlign: 'center', maxWidth: 460, margin: '40px auto' }}>
+              <div style={{ fontSize: 36 }}>⏸️</div>
+              <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', margin: '10px 0 6px' }}>Grupo pausado</h2>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                O grupo <b>{orgNome}</b> está temporariamente suspenso. Fale com o administrador para regularizar o acesso.
+              </p>
+            </div>
+          ) : (
+            <Outlet />
+          )}
         </main>
       </div>
     </div>

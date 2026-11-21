@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Building2 } from 'lucide-react'
+import { Plus, Building2, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { Organizacao } from '../lib/types'
@@ -32,6 +32,24 @@ export default function Grupos() {
       await qc.invalidateQueries({ queryKey: ['orgs'] })
       await recarregar()
     },
+    onError: (e) => setErro((e as Error).message),
+  })
+
+  const setAtivo = useMutation({
+    mutationFn: async ({ id, ativo }: { id: string; ativo: boolean }) => {
+      const { error } = await supabase.from('organizacoes').update({ ativo }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['orgs'] }),
+    onError: (e) => setErro((e as Error).message),
+  })
+
+  const excluirOrg = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('organizacoes').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['orgs'] }); await recarregar() },
     onError: (e) => setErro((e as Error).message),
   })
 
@@ -69,8 +87,19 @@ export default function Grupos() {
                   <div style={{ fontSize: 11, color: 'var(--text-hint)' }}>/{o.slug}</div>
                 </div>
               </div>
-              <div className="badge" style={{ marginTop: 10, background: o.ativo ? 'rgba(15,138,60,.15)' : 'var(--bg-elev)', color: o.ativo ? 'var(--grass-light)' : 'var(--text-hint)' }}>
-                {o.ativo ? 'Ativo' : 'Inativo'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+                <span className="badge" style={{ background: o.ativo ? 'rgba(15,138,60,.15)' : 'rgba(245,158,11,.15)', color: o.ativo ? 'var(--grass-light)' : 'var(--warn)' }}>
+                  {o.ativo ? 'Ativo' : '⏸ Pausado'}
+                </span>
+                <button className="btn btn-outline" style={{ padding: '4px 10px', fontSize: 12, marginLeft: 'auto' }}
+                  disabled={setAtivo.isPending} onClick={() => setAtivo.mutate({ id: o.id, ativo: !o.ativo })}>
+                  {o.ativo ? 'Pausar' : 'Ativar'}
+                </button>
+                <button className="btn btn-outline" style={{ padding: '4px 8px', fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                  disabled={excluirOrg.isPending}
+                  onClick={() => { if (confirm(`Excluir o grupo "${o.nome}"?\n\nIsso APAGA jogadores, membros e todos os dados do grupo. Não pode ser desfeito.`)) excluirOrg.mutate(o.id) }}>
+                  <Trash2 size={14} />
+                </button>
               </div>
             </div>
           ))}

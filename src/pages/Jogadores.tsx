@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, X, Camera, Star } from 'lucide-react'
+import { Search, X, Camera, Star, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { Jogador, Posicao, Pe } from '../lib/types'
@@ -13,6 +13,14 @@ const PES: { v: Pe; l: string }[] = [
   { v: 'direito', l: 'Direito' }, { v: 'esquerdo', l: 'Esquerdo' }, { v: 'ambidestro', l: 'Ambidestro' },
 ]
 const posLabel = (v?: string | null) => POS.find((p) => p.v === v)?.l || '—'
+
+function blankJogador(orgId: string): Jogador {
+  return {
+    id: '', org_id: orgId, user_id: null, nome: '', apelido: null, foto_url: null, telefone: null,
+    nascimento: null, posicao_principal: null, posicao_secundaria: null, pe_dominante: null,
+    nivel_tecnico: null, situacao: 'ativo', data_entrada: null, obs: null,
+  }
+}
 
 function iniciais(nome: string) {
   return nome.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('')
@@ -61,9 +69,16 @@ export default function Jogadores() {
           <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '0 0 2px' }}>Jogadores</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: 0 }}>{data?.length || 0} no total · {ativos} ativos</p>
         </div>
-        <div style={{ position: 'relative' }}>
-          <Search size={16} style={{ position: 'absolute', left: 11, top: 11, color: 'var(--text-hint)' }} />
-          <input className="input" style={{ paddingLeft: 34, width: 240 }} placeholder="Buscar nome, apelido, posição…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={16} style={{ position: 'absolute', left: 11, top: 11, color: 'var(--text-hint)' }} />
+            <input className="input" style={{ paddingLeft: 34, width: 220 }} placeholder="Buscar nome, apelido, posição…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          </div>
+          {podeGerir && (
+            <button className="btn btn-primary" onClick={() => setSel(blankJogador(orgId!))}>
+              <Plus size={16} /> Jogador
+            </button>
+          )}
         </div>
       </div>
 
@@ -116,6 +131,7 @@ function JogadorDrawer({ jogador, podeGerir, souEu, onClose }: { jogador: Jogado
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const podeEditar = podeGerir || souEu
+  const novo = !jogador.id
   const [f, setF] = useState<Jogador>(jogador)
   const [erro, setErro] = useState('')
   const [enviandoFoto, setEnviandoFoto] = useState(false)
@@ -125,18 +141,38 @@ function JogadorDrawer({ jogador, podeGerir, souEu, onClose }: { jogador: Jogado
 
   const salvar = useMutation({
     mutationFn: async () => {
-      const payload: Partial<Jogador> = {
-        nome: f.nome, apelido: f.apelido, telefone: f.telefone, nascimento: f.nascimento || null,
-        posicao_principal: f.posicao_principal, posicao_secundaria: f.posicao_secundaria,
-        pe_dominante: f.pe_dominante, obs: f.obs, foto_url: f.foto_url,
+      const base = {
+        nome: f.nome, apelido: f.apelido || null, telefone: f.telefone || null, nascimento: f.nascimento || null,
+        posicao_principal: f.posicao_principal || null, posicao_secundaria: f.posicao_secundaria || null,
+        pe_dominante: f.pe_dominante || null, obs: f.obs || null,
       }
-      if (podeGerir) { payload.nivel_tecnico = f.nivel_tecnico; payload.situacao = f.situacao }
-      const { error } = await supabase.from('jogadores').update(payload).eq('id', f.id)
+      if (novo) {
+        const { error } = await supabase.from('jogadores').insert({
+          ...base, org_id: jogador.org_id, nivel_tecnico: f.nivel_tecnico, situacao: f.situacao,
+        })
+        if (error) throw error
+      } else {
+        const payload: Partial<Jogador> = { ...base, foto_url: f.foto_url }
+        if (podeGerir) { payload.nivel_tecnico = f.nivel_tecnico; payload.situacao = f.situacao }
+        const { error } = await supabase.from('jogadores').update(payload).eq('id', f.id)
+        if (error) throw error
+      }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['jogadores', jogador.org_id] }); onClose() },
+    onError: (e) => setErro((e as Error).message),
+  })
+
+  const excluir = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc('jogador_excluir', { p_id: jogador.id })
       if (error) throw error
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['jogadores', jogador.org_id] }); onClose() },
     onError: (e) => setErro((e as Error).message),
   })
+  function onExcluir() {
+    if (confirm(`Excluir "${jogador.apelido || jogador.nome}" do grupo?\n\nA ficha e o vínculo com o grupo serão removidos. Esta ação não pode ser desfeita.`)) excluir.mutate()
+  }
 
   async function escolherFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -161,14 +197,14 @@ function JogadorDrawer({ jogador, podeGerir, souEu, onClose }: { jogador: Jogado
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 60 }} />
       <aside style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(440px,100%)', background: 'var(--bg-card)', borderLeft: '1px solid var(--border)', zIndex: 61, overflowY: 'auto', padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Ficha do jogador</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)', margin: 0 }}>{novo ? 'Novo jogador' : 'Ficha do jogador'}</h2>
           <button className="btn btn-ghost" style={{ padding: 6 }} onClick={onClose}><X size={18} /></button>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
           <div style={{ position: 'relative' }}>
             <Avatar j={f} size={72} />
-            {podeEditar && (
+            {podeEditar && !novo && (
               <button className="btn btn-outline" style={{ position: 'absolute', right: -6, bottom: -6, padding: 6, borderRadius: '50%' }}
                 onClick={() => fileRef.current?.click()} title="Trocar foto" disabled={enviandoFoto}>
                 <Camera size={14} />
@@ -221,11 +257,19 @@ function JogadorDrawer({ jogador, podeGerir, souEu, onClose }: { jogador: Jogado
             </div>
           )}
 
+          {novo && <div style={{ fontSize: 11.5, color: 'var(--text-hint)' }}>Jogador adicionado pela comissão (sem login). Ele poderá ganhar acesso depois.</div>}
           {erro && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{erro}</div>}
           {podeEditar ? (
-            <button className="btn btn-primary" disabled={salvar.isPending || enviandoFoto} onClick={() => salvar.mutate()}>
-              {salvar.isPending ? 'Salvando…' : 'Salvar'}
-            </button>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-primary" style={{ flex: 1 }} disabled={salvar.isPending || enviandoFoto} onClick={() => salvar.mutate()}>
+                {salvar.isPending ? 'Salvando…' : novo ? 'Adicionar jogador' : 'Salvar'}
+              </button>
+              {!novo && podeGerir && (
+                <button className="btn btn-outline" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} disabled={excluir.isPending} onClick={onExcluir} title="Excluir jogador">
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
           ) : (
             <div style={{ fontSize: 12.5, color: 'var(--text-hint)', textAlign: 'center' }}>Somente a comissão ou o próprio jogador podem editar.</div>
           )}
