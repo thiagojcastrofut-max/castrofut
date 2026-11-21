@@ -8,8 +8,10 @@ interface Jog { id: string; nome: string; apelido: string | null; nivel_tecnico:
 interface SJ { id: string; jogador_id: string; time: string | null; ordem_pick: number | null; jogador?: Jog }
 interface Serie {
   id: string; org_id: string; nome: string | null; formato: number; status: string
-  capitao_a: string; capitao_b: string; vez: string; vitorias_a: number; vitorias_b: number; vencedor: string | null
+  capitao_a: string; capitao_b: string; vez: string; vitorias_a: number; vitorias_b: number
+  vitorias_necessarias: number; vencedor: string | null
 }
+interface Churrasco { id: string; valor_total: number; equipe_perdedora: string | null }
 
 const apel = (j?: Jog) => j?.apelido || j?.nome || '—'
 
@@ -97,6 +99,14 @@ function Draft({ serieId, onVoltar }: { serieId: string; onVoltar: () => void })
     mutationFn: async () => { const { error } = await supabase.rpc('fechar_times', { p_serie_id: serieId }); if (error) throw error },
     onError: (e) => alert((e as Error).message),
   })
+  const { data: chur } = useQuery({
+    queryKey: ['churrasco', serieId], enabled: !!serieId,
+    queryFn: async () => (await supabase.from('churrascos').select('*').eq('serie_id', serieId).maybeSingle()).data as Churrasco | null,
+  })
+  const regJogo = useMutation({ mutationFn: async (v: 'a' | 'b') => { const { error } = await supabase.rpc('registrar_jogo_serie', { p_serie_id: serieId, p_vencedor: v }); if (error) throw error }, onSuccess: () => qc.invalidateQueries({ queryKey: ['serie', serieId] }), onError: (e) => alert((e as Error).message) })
+  const desfazer = useMutation({ mutationFn: async () => { const { error } = await supabase.rpc('desfazer_jogo_serie', { p_serie_id: serieId }); if (error) throw error }, onSuccess: () => qc.invalidateQueries({ queryKey: ['serie', serieId] }), onError: (e) => alert((e as Error).message) })
+  const criarChur = useMutation({ mutationFn: async (valor: number) => { const { error } = await supabase.rpc('criar_churrasco', { p_serie_id: serieId, p_valor: valor }); if (error) throw error }, onSuccess: () => qc.invalidateQueries({ queryKey: ['churrasco', serieId] }), onError: (e) => alert((e as Error).message) })
+  const podeJuiz = temPapel('admin_geral', 'comissao', 'juiz')
 
   if (!data?.serie) return <div className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Carregando…</div>
   const s = data.serie
@@ -181,6 +191,58 @@ function Draft({ serieId, onVoltar }: { serieId: string; onVoltar: () => void })
             </button>
           )}
         </>
+      )}
+
+      {!draft && (
+        <ResultadoSerie s={s} chur={chur || null} podeJuiz={podeJuiz} podeGerir={podeGerir}
+          onJogo={(v) => regJogo.mutate(v)} onDesfazer={() => desfazer.mutate()} onChurrasco={(v) => criarChur.mutate(v)} />
+      )}
+    </div>
+  )
+}
+
+function ResultadoSerie({ s, chur, podeJuiz, podeGerir, onJogo, onDesfazer, onChurrasco }: {
+  s: Serie; chur: Churrasco | null; podeJuiz: boolean; podeGerir: boolean
+  onJogo: (v: 'a' | 'b') => void; onDesfazer: () => void; onChurrasco: (valor: number) => void
+}) {
+  const [valor, setValor] = useState('')
+  const encerrada = s.status === 'encerrada'
+  const jogos = s.vitorias_a + s.vitorias_b
+  const campeaTxt = s.vencedor === 'a' ? 'Time A' : 'Time B'
+  const perdedoraTxt = s.vencedor === 'a' ? 'Time B' : 'Time A'
+  return (
+    <div className="card" style={{ padding: 16 }}>
+      <div style={{ textAlign: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-hint)' }}>Série · melhor de {s.formato} (precisa {s.vitorias_necessarias})</div>
+        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)' }}>
+          Time A <span style={{ color: 'var(--grass-light)' }}>{s.vitorias_a}</span> × <span style={{ color: 'var(--grass-light)' }}>{s.vitorias_b}</span> Time B
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-hint)' }}>{jogos} jogo(s) disputado(s)</div>
+      </div>
+
+      {!encerrada && podeJuiz && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button className="btn btn-primary" onClick={() => onJogo('a')}>Time A venceu</button>
+          <button className="btn btn-primary" onClick={() => onJogo('b')}>Time B venceu</button>
+          {jogos > 0 && <button className="btn btn-ghost" onClick={onDesfazer}>Desfazer último</button>}
+        </div>
+      )}
+
+      {encerrada && (
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#f5c518', marginBottom: 2 }}>🏆 Campeã: {campeaTxt}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 14 }}>🍖 Churrasco por conta do {perdedoraTxt}</div>
+          {chur ? (
+            <div className="badge" style={{ background: 'rgba(15,138,60,.15)', color: 'var(--grass-light)' }}>
+              Churrasco lançado: {(chur.valor_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} — dividido entre o {perdedoraTxt} (ver Financeiro → Cartões/Débitos)
+            </div>
+          ) : podeGerir ? (
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div><label className="label">Valor total do churrasco (R$)</label><input className="input" style={{ width: 160 }} value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" /></div>
+              <button className="btn btn-primary" disabled={!valor} onClick={() => onChurrasco(parseFloat(valor.replace(',', '.')))}>Gerar cobrança</button>
+            </div>
+          ) : null}
+        </div>
       )}
     </div>
   )
