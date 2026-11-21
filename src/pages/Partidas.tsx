@@ -123,35 +123,82 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
 }
 function Vazio({ t }: { t: string }) { return <div className="card" style={{ padding: 16, color: 'var(--text-muted)', fontSize: 14 }}>{t}</div> }
 
+interface Evento { id: string; jogador_id: string | null; equipe: string | null; tipo: string; minuto: number | null; jogador?: { nome: string; apelido: string | null } }
+const EV_ICON: Record<string, string> = { gol: '⚽', assistencia: '👟', cartao_azul: '🟦', cartao_amarelo: '🟨', cartao_vermelho: '🟥' }
+
 function DetalhePartida({ p, podeGerir, onEditar, onClose, orgId }: { p: Partida; podeGerir: boolean; onEditar: () => void; onClose: () => void; orgId: string }) {
   const qc = useQueryClient()
+  const { temPapel } = useAuth()
+  const podeSumula = temPapel('admin_geral', 'comissao', 'juiz')
   const conf = (p.presencas || []).filter((x) => x.status === 'confirmado')
   const rec = (p.presencas || []).filter((x) => x.status === 'recusado')
-  const excluir = useMutation({
-    mutationFn: async () => { const { error } = await supabase.from('partidas').delete().eq('id', p.id); if (error) throw error },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['partidas', orgId] }); onClose() },
+  const nome = (x: { jogador?: { nome: string; apelido: string | null } }) => x.jogador?.apelido || x.jogador?.nome || '—'
+
+  const { data: eventos } = useQuery({
+    queryKey: ['eventos', p.id], enabled: !!p.id,
+    queryFn: async (): Promise<Evento[]> => (await supabase.from('eventos_partida').select('*, jogador:jogadores(nome,apelido)').eq('partida_id', p.id).order('criado_em')).data as Evento[] || [],
+  })
+  const { data: jogs } = useQuery({
+    queryKey: ['jogs-ativos', orgId], enabled: podeSumula,
+    queryFn: async () => (await supabase.from('jogadores').select('id,nome,apelido').eq('org_id', orgId).eq('situacao', 'ativo').order('nome')).data as { id: string; nome: string; apelido: string | null }[] || [],
+  })
+
+  const golA = (eventos || []).filter((e) => e.tipo === 'gol' && e.equipe === 'a').length
+  const golB = (eventos || []).filter((e) => e.tipo === 'gol' && e.equipe === 'b').length
+
+  const excluir = useMutation({ mutationFn: async () => { const { error } = await supabase.from('partidas').delete().eq('id', p.id); if (error) throw error }, onSuccess: () => { qc.invalidateQueries({ queryKey: ['partidas', orgId] }); onClose() }, onError: (e) => alert((e as Error).message) })
+  const registrar = useMutation({
+    mutationFn: async (v: { jogador_id: string; tipo: string; equipe: string | null; minuto: number | null }) => {
+      const { error } = await supabase.rpc('registrar_evento', { p_partida_id: p.id, p_jogador_id: v.jogador_id, p_tipo: v.tipo, p_equipe: v.equipe, p_minuto: v.minuto })
+      if (error) throw error
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['eventos', p.id] }); qc.invalidateQueries({ queryKey: ['partidas', orgId] }) },
     onError: (e) => alert((e as Error).message),
   })
-  const nome = (x: Presenca) => x.jogador?.apelido || x.jogador?.nome || '—'
+  const remover = useMutation({ mutationFn: async (id: string) => { const { error } = await supabase.rpc('remover_evento', { p_evento_id: id }); if (error) throw error }, onSuccess: () => { qc.invalidateQueries({ queryKey: ['eventos', p.id] }); qc.invalidateQueries({ queryKey: ['partidas', orgId] }) }, onError: (e) => alert((e as Error).message) })
+
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 60 }} />
-      <aside style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(420px,100%)', background: 'var(--bg-card)', borderLeft: '1px solid var(--border)', zIndex: 61, overflowY: 'auto', padding: 20 }}>
+      <aside style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(440px,100%)', background: 'var(--bg-card)', borderLeft: '1px solid var(--border)', zIndex: 61, overflowY: 'auto', padding: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)', margin: 0, textTransform: 'capitalize' }}>{diaSemana(p.data)}</h2>
           <button className="btn btn-ghost" style={{ padding: 6 }} onClick={onClose}><X size={18} /></button>
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
           {p.hora && <span><Clock size={13} /> {p.hora.slice(0, 5)}</span>}
           {p.local && <span><MapPin size={13} /> {p.local}</span>}
         </div>
-        {p.obs && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>{p.obs}</p>}
+
+        {/* Placar */}
+        <div className="card" style={{ padding: 14, marginBottom: 14, background: 'var(--bg-elev)', textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-hint)', marginBottom: 2 }}>Placar</div>
+          <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--text)' }}>Time A <span style={{ color: 'var(--grass-light)' }}>{golA}</span> × <span style={{ color: 'var(--grass-light)' }}>{golB}</span> Time B</div>
+        </div>
 
         {podeGerir && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <button className="btn btn-outline" style={{ flex: 1 }} onClick={onEditar}><Pencil size={15} /> Editar</button>
-            <button className="btn btn-outline" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
-              onClick={() => { if (confirm('Excluir esta partida?')) excluir.mutate() }}><Trash2 size={15} /></button>
+            <button className="btn btn-outline" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => { if (confirm('Excluir esta partida?')) excluir.mutate() }}><Trash2 size={15} /></button>
+          </div>
+        )}
+
+        {/* Súmula do juiz */}
+        {podeSumula && p.status !== 'cancelada' && <Sumula jogs={jogs || []} onReg={(v) => registrar.mutate(v)} />}
+
+        {/* Eventos */}
+        {(eventos || []).length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Súmula</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {(eventos || []).map((e) => (
+                <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--text)', background: 'var(--bg-elev)', borderRadius: 7, padding: '6px 10px' }}>
+                  <span style={{ fontSize: 15 }}>{EV_ICON[e.tipo] || '•'}</span>
+                  <span style={{ flex: 1 }}>{nome(e)} {e.equipe ? <span style={{ color: 'var(--text-hint)', fontSize: 11 }}>({'Time ' + e.equipe.toUpperCase()})</span> : ''}{e.minuto ? <span style={{ color: 'var(--text-hint)' }}> · {e.minuto}'</span> : ''}</span>
+                  {podeSumula && <button className="btn btn-ghost" style={{ padding: 3 }} onClick={() => remover.mutate(e.id)}><Trash2 size={13} /></button>}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -169,6 +216,36 @@ function DetalhePartida({ p, podeGerir, onEditar, onClose, orgId }: { p: Partida
         )}
       </aside>
     </>
+  )
+}
+
+function Sumula({ jogs, onReg }: { jogs: { id: string; nome: string; apelido: string | null }[]; onReg: (v: { jogador_id: string; tipo: string; equipe: string | null; minuto: number | null }) => void }) {
+  const [tipo, setTipo] = useState('gol')
+  const [jid, setJid] = useState('')
+  const [equipe, setEquipe] = useState<'a' | 'b'>('a')
+  const [minuto, setMinuto] = useState('')
+  const tipos = [['gol', '⚽ Gol'], ['assistencia', '👟 Assist.'], ['cartao_azul', '🟦 Azul'], ['cartao_amarelo', '🟨 Amarelo'], ['cartao_vermelho', '🟥 Vermelho']] as const
+  return (
+    <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+      <div style={{ fontWeight: 700, color: 'var(--gold-light,var(--grass-light))', marginBottom: 10 }}>📋 Registrar (juiz)</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+        {tipos.map(([k, l]) => <button key={k} className={'btn ' + (tipo === k ? 'btn-primary' : 'btn-outline')} style={{ padding: '6px 10px', fontSize: 12 }} onClick={() => setTipo(k)}>{l}</button>)}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <select className="input" value={jid} onChange={(e) => setJid(e.target.value)}>
+          <option value="">Jogador…</option>
+          {jogs.map((j) => <option key={j.id} value={j.id}>{j.apelido || j.nome}</option>)}
+        </select>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button className={'btn ' + (equipe === 'a' ? 'btn-primary' : 'btn-outline')} style={{ padding: '7px 12px' }} onClick={() => setEquipe('a')}>Time A</button>
+            <button className={'btn ' + (equipe === 'b' ? 'btn-primary' : 'btn-outline')} style={{ padding: '7px 12px' }} onClick={() => setEquipe('b')}>Time B</button>
+          </div>
+          <input className="input" style={{ width: 70 }} placeholder="min" value={minuto} onChange={(e) => setMinuto(e.target.value)} />
+        </div>
+        <button className="btn btn-primary" disabled={!jid} onClick={() => { onReg({ jogador_id: jid, tipo, equipe, minuto: minuto ? parseInt(minuto) : null }); setJid(''); setMinuto('') }}>Registrar</button>
+      </div>
+    </div>
   )
 }
 

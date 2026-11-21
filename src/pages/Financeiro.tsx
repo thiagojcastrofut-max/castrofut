@@ -38,21 +38,40 @@ function MinhasMensalidades({ orgId, org }: { orgId: string; org?: Organizacao }
       return (data || []) as Mensalidade[]
     },
   })
+  const { data: debs } = useQuery({
+    queryKey: ['meus-deb', orgId], enabled: !!orgId,
+    queryFn: async (): Promise<Debito[]> => (await supabase.from('debitos').select('*').eq('org_id', orgId).order('criado_em', { ascending: false })).data as Debito[] || [],
+  })
   const devo = (data || []).filter((m) => m.status !== 'paga' && m.status !== 'isenta' && m.status !== 'cancelada')
-  const total = devo.reduce((s, m) => s + (m.valor - m.desconto - m.valor_pago), 0)
+  const debAbertos = (debs || []).filter((d) => d.status === 'aberto')
+  const total = devo.reduce((s, m) => s + (m.valor - m.desconto - m.valor_pago), 0) + debAbertos.reduce((s, d) => s + d.valor, 0)
   return (
     <div>
-      <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '0 0 2px' }}>Minhas mensalidades</h1>
-      <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 16px' }}>Acompanhe seus pagamentos do grupo.</p>
+      <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '0 0 2px' }}>Minhas cobranças</h1>
+      <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 16px' }}>Acompanhe suas mensalidades e débitos do grupo.</p>
       <div className="card" style={{ padding: 16, marginBottom: 14 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-hint)' }}>Em aberto</div>
+        <div style={{ fontSize: 12, color: 'var(--text-hint)' }}>Total em aberto</div>
         <div style={{ fontSize: 26, fontWeight: 800, color: total > 0 ? 'var(--warn)' : 'var(--grass-light)' }}>{brl(total)}</div>
         {total > 0 && org?.pix_chave && <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 6 }}>Pix: <b style={{ color: 'var(--text)' }}>{org.pix_chave}</b>{org.pix_titular ? ` (${org.pix_titular})` : ''}</div>}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-hint)', textTransform: 'uppercase', margin: '0 0 8px' }}>Mensalidades</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
         {(data || []).map((m) => <LinhaMens key={m.id} m={m} />)}
         {data && data.length === 0 && <div className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Nenhuma mensalidade lançada ainda.</div>}
       </div>
+      {(debs || []).length > 0 && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-hint)', textTransform: 'uppercase', margin: '0 0 8px' }}>Cartões / débitos</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(debs || []).map((d) => (
+              <div key={d.id} className="card" style={{ padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div><div style={{ fontWeight: 700, color: 'var(--text)' }}>{d.descricao || d.tipo}</div><div style={{ fontSize: 11, color: 'var(--text-hint)' }}>{new Date(d.criado_em).toLocaleDateString('pt-BR')}</div></div>
+                <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 700, color: 'var(--text)' }}>{brl(d.valor)}</div><StatusBadge s={d.status === 'pago' ? 'paga' : d.status === 'cancelado' ? 'cancelada' : 'aberta'} /></div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -83,9 +102,9 @@ function StatusBadge({ s }: { s: string }) {
 
 /* ===================== Gestão (admin/tesoureiro/comissão) ===================== */
 function Gestao({ orgId, org, podeGerir }: { orgId: string; org?: Organizacao; podeGerir: boolean }) {
-  const [aba, setAba] = useState<'resumo' | 'mensalidades' | 'lancamentos' | 'relatorios' | 'config'>('mensalidades')
+  const [aba, setAba] = useState<'resumo' | 'mensalidades' | 'debitos' | 'lancamentos' | 'relatorios' | 'config'>('mensalidades')
   const abas = [
-    ['resumo', 'Resumo'], ['mensalidades', 'Mensalidades'], ['lancamentos', 'Receitas / Despesas'], ['relatorios', 'Relatórios'], ['config', 'Configuração'],
+    ['resumo', 'Resumo'], ['mensalidades', 'Mensalidades'], ['debitos', 'Cartões / Débitos'], ['lancamentos', 'Receitas / Despesas'], ['relatorios', 'Relatórios'], ['config', 'Configuração'],
   ] as const
   return (
     <div>
@@ -97,6 +116,7 @@ function Gestao({ orgId, org, podeGerir }: { orgId: string; org?: Organizacao; p
       </div>
       {aba === 'resumo' && <Resumo orgId={orgId} />}
       {aba === 'mensalidades' && <Mensalidades orgId={orgId} org={org} podeGerir={podeGerir} />}
+      {aba === 'debitos' && <Debitos orgId={orgId} podeGerir={podeGerir} />}
       {aba === 'lancamentos' && <Lancamentos orgId={orgId} podeGerir={podeGerir} />}
       {aba === 'relatorios' && <Relatorios orgId={orgId} grupo={org?.nome} />}
       {aba === 'config' && <Config orgId={orgId} org={org} podeGerir={podeGerir} />}
@@ -327,30 +347,90 @@ function Lancamentos({ orgId, podeGerir }: { orgId: string; podeGerir: boolean }
 }
 
 function Config({ orgId, org, podeGerir }: { orgId: string; org?: Organizacao; podeGerir: boolean }) {
-  const { recarregar } = useAuth()
+  const { recarregar, temPapel } = useAuth()
+  const podeMultas = temPapel('admin_geral', 'comissao')
   const [f, setF] = useState({ mensalidade_padrao: String(org?.mensalidade_padrao ?? ''), pix_chave: org?.pix_chave || '', pix_titular: org?.pix_titular || '', banco: org?.banco || '' })
-  const [msg, setMsg] = useState('')
+  const [mul, setMul] = useState({ azul: String(org?.multa_cartao_azul ?? ''), amarelo: String(org?.multa_cartao_amarelo ?? ''), vermelho: String(org?.multa_cartao_vermelho ?? '') })
+  const [msg, setMsg] = useState(''); const [msg2, setMsg2] = useState('')
+  const num = (s: string) => s ? parseFloat(s.replace(',', '.')) : 0
+
   const salvar = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.rpc('salvar_config_financeira', {
-        p_org_id: orgId, p_mensalidade_padrao: f.mensalidade_padrao ? parseFloat(f.mensalidade_padrao.replace(',', '.')) : null,
-        p_pix_chave: f.pix_chave || null, p_pix_titular: f.pix_titular || null, p_banco: f.banco || null,
-      })
-      if (error) throw error
-    },
-    onSuccess: async () => { await recarregar(); setMsg('Salvo!') },
-    onError: (e) => setMsg((e as Error).message),
+    mutationFn: async () => { const { error } = await supabase.rpc('salvar_config_financeira', { p_org_id: orgId, p_mensalidade_padrao: f.mensalidade_padrao ? num(f.mensalidade_padrao) : null, p_pix_chave: f.pix_chave || null, p_pix_titular: f.pix_titular || null, p_banco: f.banco || null }); if (error) throw error },
+    onSuccess: async () => { await recarregar(); setMsg('Salvo!') }, onError: (e) => setMsg((e as Error).message),
   })
-  if (!podeGerir) return <div className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Só admin/tesoureiro edita a configuração financeira.</div>
+  const salvarMultas = useMutation({
+    mutationFn: async () => { const { error } = await supabase.rpc('salvar_multas_cartao', { p_org_id: orgId, p_azul: num(mul.azul), p_amarelo: num(mul.amarelo), p_vermelho: num(mul.vermelho) }); if (error) throw error },
+    onSuccess: async () => { await recarregar(); setMsg2('Salvo!') }, onError: (e) => setMsg2((e as Error).message),
+  })
+
   return (
-    <div className="card" style={{ padding: 18, maxWidth: 460 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div><label className="label">Mensalidade padrão (R$)</label><input className="input" value={f.mensalidade_padrao} onChange={(e) => setF({ ...f, mensalidade_padrao: e.target.value })} placeholder="0,00" /></div>
-        <div><label className="label">Chave Pix</label><input className="input" value={f.pix_chave} onChange={(e) => setF({ ...f, pix_chave: e.target.value })} /></div>
-        <div><label className="label">Titular do Pix</label><input className="input" value={f.pix_titular} onChange={(e) => setF({ ...f, pix_titular: e.target.value })} /></div>
-        <div><label className="label">Banco</label><input className="input" value={f.banco} onChange={(e) => setF({ ...f, banco: e.target.value })} placeholder="C6 Bank" /></div>
-        {msg && <div style={{ fontSize: 13, color: msg === 'Salvo!' ? 'var(--grass-light)' : 'var(--danger)' }}>{msg}</div>}
-        <button className="btn btn-primary" disabled={salvar.isPending} onClick={() => salvar.mutate()}>{salvar.isPending ? 'Salvando…' : 'Salvar'}</button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 460 }}>
+      {podeGerir && (
+        <div className="card" style={{ padding: 18 }}>
+          <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Mensalidade & Pix</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div><label className="label">Mensalidade padrão (R$)</label><input className="input" value={f.mensalidade_padrao} onChange={(e) => setF({ ...f, mensalidade_padrao: e.target.value })} placeholder="0,00" /></div>
+            <div><label className="label">Chave Pix</label><input className="input" value={f.pix_chave} onChange={(e) => setF({ ...f, pix_chave: e.target.value })} /></div>
+            <div><label className="label">Titular do Pix</label><input className="input" value={f.pix_titular} onChange={(e) => setF({ ...f, pix_titular: e.target.value })} /></div>
+            <div><label className="label">Banco</label><input className="input" value={f.banco} onChange={(e) => setF({ ...f, banco: e.target.value })} placeholder="C6 Bank" /></div>
+            {msg && <div style={{ fontSize: 13, color: msg === 'Salvo!' ? 'var(--grass-light)' : 'var(--danger)' }}>{msg}</div>}
+            <button className="btn btn-primary" disabled={salvar.isPending} onClick={() => salvar.mutate()}>{salvar.isPending ? 'Salvando…' : 'Salvar'}</button>
+          </div>
+        </div>
+      )}
+      {podeMultas && (
+        <div className="card" style={{ padding: 18 }}>
+          <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Multas dos cartões</div>
+          <div style={{ fontSize: 12, color: 'var(--text-hint)', marginBottom: 12 }}>Ao aplicar um cartão na partida, o valor vira débito na conta do jogador.</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div><label className="label">🟦 Cartão azul (R$)</label><input className="input" value={mul.azul} onChange={(e) => setMul({ ...mul, azul: e.target.value })} placeholder="0,00" /></div>
+            <div><label className="label">🟨 Cartão amarelo (R$)</label><input className="input" value={mul.amarelo} onChange={(e) => setMul({ ...mul, amarelo: e.target.value })} placeholder="0,00" /></div>
+            <div><label className="label">🟥 Cartão vermelho (R$)</label><input className="input" value={mul.vermelho} onChange={(e) => setMul({ ...mul, vermelho: e.target.value })} placeholder="0,00" /></div>
+            {msg2 && <div style={{ fontSize: 13, color: msg2 === 'Salvo!' ? 'var(--grass-light)' : 'var(--danger)' }}>{msg2}</div>}
+            <button className="btn btn-primary" disabled={salvarMultas.isPending} onClick={() => salvarMultas.mutate()}>{salvarMultas.isPending ? 'Salvando…' : 'Salvar multas'}</button>
+          </div>
+        </div>
+      )}
+      {!podeGerir && !podeMultas && <div className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Sem permissão para editar configurações.</div>}
+    </div>
+  )
+}
+
+interface Debito { id: string; jogador_id: string; tipo: string; descricao: string | null; valor: number; status: string; criado_em: string; jogador?: { nome: string; apelido: string | null } }
+
+function Debitos({ orgId, podeGerir }: { orgId: string; podeGerir: boolean }) {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['debitos', orgId], enabled: !!orgId,
+    queryFn: async (): Promise<Debito[]> => (await supabase.from('debitos').select('*, jogador:jogadores(nome,apelido)').eq('org_id', orgId).order('criado_em', { ascending: false })).data as Debito[] || [],
+  })
+  const pagar = useMutation({
+    mutationFn: async ({ id, pago }: { id: string; pago: boolean }) => { const { error } = await supabase.rpc('pagar_debito', { p_debito_id: id, p_pago: pago }); if (error) throw error },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['debitos', orgId] }), onError: (e) => alert((e as Error).message),
+  })
+  const abertos = (data || []).filter((d) => d.status === 'aberto')
+  const total = abertos.reduce((s, d) => s + d.valor, 0)
+  const nomeJ = (d: Debito) => d.jogador?.apelido || d.jogador?.nome || '—'
+  return (
+    <div>
+      <div className="card" style={{ padding: '10px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Cartões/débitos em aberto</span><b style={{ color: 'var(--warn)' }}>{brl(total)}</b>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {(data || []).map((d) => (
+          <div key={d.id} className="card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, color: 'var(--text)' }}>{nomeJ(d)}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-hint)' }}>{d.descricao || d.tipo} · {new Date(d.criado_em).toLocaleDateString('pt-BR')}</div>
+            </div>
+            <b style={{ color: 'var(--text)' }}>{brl(d.valor)}</b>
+            {d.status === 'pago' ? <span className="badge" style={{ background: 'rgba(47,207,107,.18)', color: '#2fcf6b' }}>pago</span>
+              : podeGerir ? <button className="btn btn-primary" style={{ padding: '6px 11px' }} onClick={() => pagar.mutate({ id: d.id, pago: true })}>Dar baixa</button>
+                : <span className="badge" style={{ background: 'rgba(245,158,11,.15)', color: 'var(--warn)' }}>em aberto</span>}
+            {d.status === 'pago' && podeGerir && <button className="btn btn-ghost" style={{ padding: 6, fontSize: 11 }} onClick={() => pagar.mutate({ id: d.id, pago: false })}>estornar</button>}
+          </div>
+        ))}
+        {data && data.length === 0 && <div className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Nenhum débito. 🎉</div>}
       </div>
     </div>
   )

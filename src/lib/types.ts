@@ -22,6 +22,9 @@ export interface Organizacao {
   pix_titular: string | null
   banco: string | null
   mensalidade_padrao: number | null
+  multa_cartao_azul?: number | null
+  multa_cartao_amarelo?: number | null
+  multa_cartao_vermelho?: number | null
   ativo: boolean
   criado_em: string
 }
