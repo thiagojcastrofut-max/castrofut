@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Home, CalendarDays, Swords, Wallet, LogOut, ChevronDown } from 'lucide-react'
+import { Home, CalendarDays, Swords, Wallet, Trophy, LogOut, ChevronDown } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 
 const NAV = [
   { to: '/', label: 'Início', icon: Home, end: true },
   { to: '/partidas', label: 'Partidas', icon: CalendarDays },
   { to: '/series', label: 'Séries', icon: Swords },
+  { to: '/rankings', label: 'Ranking', icon: Trophy },
   { to: '/financeiro', label: 'Financeiro', icon: Wallet },
 ]
 

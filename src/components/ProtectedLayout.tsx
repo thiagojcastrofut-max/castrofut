@@ -25,7 +25,7 @@ const ITENS: Item[] = [
   { to: '/financeiro', label: 'Financeiro', icon: Wallet },
   { to: '/partidas', label: 'Partidas', icon: CalendarDays },
   { to: '/series', label: 'Séries', icon: Swords },
-  { to: '/rankings', label: 'Rankings', icon: Trophy, emBreve: true },
+  { to: '/rankings', label: 'Rankings', icon: Trophy },
   { to: '/grupos', label: 'Grupos (plataforma)', icon: Building2, soSuper: true },
 ]
 
