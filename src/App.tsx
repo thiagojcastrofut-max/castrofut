@@ -7,6 +7,7 @@ import Login from './pages/Login'
 import Cadastro from './pages/Cadastro'
 import RecuperarSenha from './pages/RecuperarSenha'
 import Dashboard from './pages/Dashboard'
+import Jogadores from './pages/Jogadores'
 import Aprovacoes from './pages/Aprovacoes'
 import Grupos from './pages/Grupos'
 import SemGrupo from './pages/SemGrupo'
@@ -33,6 +34,7 @@ export default function App() {
       <Route path="/sem-grupo" element={<SemGrupo />} />
       <Route element={<ProtectedLayout />}>
         <Route index element={<Dashboard />} />
+        <Route path="jogadores" element={<Jogadores />} />
         <Route path="aprovacoes" element={<Aprovacoes />} />
         <Route path="grupos" element={<Grupos />} />
       </Route>
