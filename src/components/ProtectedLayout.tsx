@@ -134,7 +134,7 @@ export function ProtectedLayout() {
       {menuAberto && <div className="fm-overlay" onClick={() => setMenuAberto(false)} />}
 
       {/* Conteúdo */}
-      <div style={{ flex: 1, minWidth: 0, marginLeft: 0 }} className="fm-main">
+      <div style={{ flex: 1, minWidth: 0 }} className="fm-main">
         <header className="fm-topbar">
           <button className="btn btn-ghost fm-burger" style={{ padding: 8 }} onClick={() => setMenuAberto(true)}>
             <Menu size={20} />
