@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, UserCheck, Building2, LogOut, Menu, X, ShieldCheck,
-  Users, Wallet, CalendarDays, Trophy,
+  Users, Wallet, CalendarDays, Trophy, UserCog,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { PAPEL_LABEL } from '../lib/types'
@@ -20,6 +20,7 @@ interface Item {
 const ITENS: Item[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/aprovacoes', label: 'Aprovações', icon: UserCheck, papeis: ['admin_geral', 'comissao'] },
+  { to: '/membros', label: 'Membros & Funções', icon: UserCog, papeis: ['admin_geral', 'comissao'] },
   { to: '/jogadores', label: 'Jogadores', icon: Users },
   { to: '/financeiro', label: 'Financeiro', icon: Wallet, emBreve: true },
   { to: '/partidas', label: 'Partidas', icon: CalendarDays, emBreve: true },
