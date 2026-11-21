@@ -15,6 +15,7 @@ import Financeiro from './pages/Financeiro'
 import Partidas from './pages/Partidas'
 import Series from './pages/Series'
 import Rankings from './pages/Rankings'
+import Sorteio from './pages/Sorteio'
 import Aprovacoes from './pages/Aprovacoes'
 import Grupos from './pages/Grupos'
 import SemGrupo from './pages/SemGrupo'
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="partidas" element={<Partidas />} />
         <Route path="series" element={<Series />} />
         <Route path="rankings" element={<Rankings />} />
+        <Route path="sorteio" element={<Sorteio />} />
         <Route path="aprovacoes" element={<Aprovacoes />} />
         <Route path="grupos" element={<Grupos />} />
       </Route>
