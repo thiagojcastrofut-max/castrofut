@@ -10,6 +10,7 @@ interface Serie {
   id: string; org_id: string; nome: string | null; formato: number; status: string
   capitao_a: string; capitao_b: string; vez: string; vitorias_a: number; vitorias_b: number
   vitorias_necessarias: number; vencedor: string | null
+  equipe_a_nome: string | null; equipe_b_nome: string | null; inscricao_ate: string | null
 }
 interface Churrasco { id: string; valor_total: number; equipe_perdedora: string | null }
 
@@ -46,8 +47,8 @@ export default function Series() {
               <div style={{ fontWeight: 700, color: 'var(--text)' }}>{s.nome || 'Série'} · melhor de {s.formato}</div>
               <div style={{ fontSize: 12, color: 'var(--text-hint)' }}>Time A {s.vitorias_a} × {s.vitorias_b} Time B</div>
             </div>
-            <span className="badge" style={{ background: s.status === 'draft' ? 'rgba(245,158,11,.15)' : s.status === 'encerrada' ? 'var(--bg-elev)' : 'rgba(15,138,60,.15)', color: s.status === 'draft' ? 'var(--warn)' : s.status === 'encerrada' ? 'var(--text-hint)' : 'var(--grass-light)' }}>
-              {s.status === 'draft' ? 'Escolhendo times' : s.status === 'em_andamento' ? 'Em andamento' : 'Encerrada'}
+            <span className="badge" style={{ background: s.status === 'encerrada' ? 'var(--bg-elev)' : s.status === 'em_andamento' ? 'rgba(15,138,60,.15)' : 'rgba(245,158,11,.15)', color: s.status === 'encerrada' ? 'var(--text-hint)' : s.status === 'em_andamento' ? 'var(--grass-light)' : 'var(--warn)' }}>
+              {s.status === 'inscricao' ? 'Inscrições abertas' : s.status === 'draft' ? 'Escolhendo times' : s.status === 'em_andamento' ? 'Em andamento' : 'Encerrada'}
             </span>
           </button>
         ))}
@@ -112,6 +113,9 @@ function Draft({ serieId, onVoltar }: { serieId: string; onVoltar: () => void })
   const s = data.serie
   const js = data.jogadores
   const meuId = meu?.id
+  const nomeA = s.equipe_a_nome || 'Time A'
+  const nomeB = s.equipe_b_nome || 'Time B'
+  if (s.status === 'inscricao') return <Inscricao serieId={serieId} s={s} js={js} orgId={orgId!} meuId={meuId} podeGerir={podeGerir} nomeA={nomeA} nomeB={nomeB} onVoltar={onVoltar} />
   const souCapA = meuId === s.capitao_a, souCapB = meuId === s.capitao_b
   const draft = s.status === 'draft'
   const minhaVez = draft && ((s.vez === 'a' && souCapA) || (s.vez === 'b' && souCapB) || podeGerir)
@@ -122,7 +126,7 @@ function Draft({ serieId, onVoltar }: { serieId: string; onVoltar: () => void })
   const timeB = js.filter((x) => x.time === 'b').sort((a, b) => (a.ordem_pick || 0) - (b.ordem_pick || 0))
   const soma = (arr: SJ[]) => arr.reduce((t, x) => t + (x.jogador?.nivel_tecnico || 0), 0)
 
-  const vezLabel = s.vez === 'a' ? 'Time A' : 'Time B'
+  const vezLabel = s.vez === 'a' ? nomeA : nomeB
 
   function Coluna({ titulo, arr, time, cap }: { titulo: string; arr: SJ[]; time: 'a' | 'b'; cap: string }) {
     return (
@@ -167,8 +171,8 @@ function Draft({ serieId, onVoltar }: { serieId: string; onVoltar: () => void })
       )}
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
-        <Coluna titulo="Time A" arr={timeA} time="a" cap={s.capitao_a} />
-        <Coluna titulo="Time B" arr={timeB} time="b" cap={s.capitao_b} />
+        <Coluna titulo={nomeA} arr={timeA} time="a" cap={s.capitao_a} />
+        <Coluna titulo={nomeB} arr={timeB} time="b" cap={s.capitao_b} />
       </div>
 
       {draft && (
@@ -194,36 +198,36 @@ function Draft({ serieId, onVoltar }: { serieId: string; onVoltar: () => void })
       )}
 
       {!draft && (
-        <ResultadoSerie s={s} chur={chur || null} podeJuiz={podeJuiz} podeGerir={podeGerir}
+        <ResultadoSerie s={s} chur={chur || null} podeJuiz={podeJuiz} podeGerir={podeGerir} nomeA={nomeA} nomeB={nomeB}
           onJogo={(v) => regJogo.mutate(v)} onDesfazer={() => desfazer.mutate()} onChurrasco={(v) => criarChur.mutate(v)} />
       )}
     </div>
   )
 }
 
-function ResultadoSerie({ s, chur, podeJuiz, podeGerir, onJogo, onDesfazer, onChurrasco }: {
-  s: Serie; chur: Churrasco | null; podeJuiz: boolean; podeGerir: boolean
+function ResultadoSerie({ s, chur, podeJuiz, podeGerir, nomeA, nomeB, onJogo, onDesfazer, onChurrasco }: {
+  s: Serie; chur: Churrasco | null; podeJuiz: boolean; podeGerir: boolean; nomeA: string; nomeB: string
   onJogo: (v: 'a' | 'b') => void; onDesfazer: () => void; onChurrasco: (valor: number) => void
 }) {
   const [valor, setValor] = useState('')
   const encerrada = s.status === 'encerrada'
   const jogos = s.vitorias_a + s.vitorias_b
-  const campeaTxt = s.vencedor === 'a' ? 'Time A' : 'Time B'
-  const perdedoraTxt = s.vencedor === 'a' ? 'Time B' : 'Time A'
+  const campeaTxt = s.vencedor === 'a' ? nomeA : nomeB
+  const perdedoraTxt = s.vencedor === 'a' ? nomeB : nomeA
   return (
     <div className="card" style={{ padding: 16 }}>
       <div style={{ textAlign: 'center', marginBottom: 12 }}>
         <div style={{ fontSize: 11, color: 'var(--text-hint)' }}>Série · melhor de {s.formato} (precisa {s.vitorias_necessarias})</div>
-        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)' }}>
-          Time A <span style={{ color: 'var(--grass-light)' }}>{s.vitorias_a}</span> × <span style={{ color: 'var(--grass-light)' }}>{s.vitorias_b}</span> Time B
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>
+          {nomeA} <span style={{ color: 'var(--grass-light)' }}>{s.vitorias_a}</span> × <span style={{ color: 'var(--grass-light)' }}>{s.vitorias_b}</span> {nomeB}
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-hint)' }}>{jogos} jogo(s) disputado(s)</div>
       </div>
 
       {!encerrada && podeJuiz && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button className="btn btn-primary" onClick={() => onJogo('a')}>Time A venceu</button>
-          <button className="btn btn-primary" onClick={() => onJogo('b')}>Time B venceu</button>
+          <button className="btn btn-primary" onClick={() => onJogo('a')}>{nomeA} venceu</button>
+          <button className="btn btn-primary" onClick={() => onJogo('b')}>{nomeB} venceu</button>
           {jogos > 0 && <button className="btn btn-ghost" onClick={onDesfazer}>Desfazer último</button>}
         </div>
       )}
@@ -255,10 +259,93 @@ function MiniBtn({ l, onClick }: { l: string; onClick: () => void }) {
   return <button onClick={onClick} style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid var(--border-strong)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}>{l}</button>
 }
 
+/* ============ Fase de inscrição (enquete) ============ */
+function Inscricao({ serieId, s, js, orgId, meuId, podeGerir, nomeA, nomeB, onVoltar }: {
+  serieId: string; s: Serie; js: SJ[]; orgId: string; meuId?: string; podeGerir: boolean; nomeA: string; nomeB: string; onVoltar: () => void
+}) {
+  const qc = useQueryClient()
+  const [na, setNa] = useState(s.equipe_a_nome || ''); const [nb, setNb] = useState(s.equipe_b_nome || '')
+  const [addId, setAddId] = useState('')
+  const souCapitao = meuId === s.capitao_a || meuId === s.capitao_b
+  const souInscrito = js.some((x) => x.jogador_id === meuId)
+  const prazoPassou = s.inscricao_ate ? new Date(s.inscricao_ate) < new Date() : false
+  const inv = () => qc.invalidateQueries({ queryKey: ['serie', serieId] })
+
+  const { data: jogs } = useQuery({
+    queryKey: ['jogs-ativos', orgId], enabled: podeGerir,
+    queryFn: async (): Promise<Jog[]> => (await supabase.from('jogadores').select('id,nome,apelido,nivel_tecnico').eq('org_id', orgId).eq('situacao', 'ativo').order('nome')).data as Jog[] || [],
+  })
+  const naoInscritos = (jogs || []).filter((j) => !js.some((x) => x.jogador_id === j.id))
+
+  const participar = useMutation({ mutationFn: async (v: boolean) => { const { error } = await supabase.rpc('inscrever_serie', { p_serie_id: serieId, p_participar: v }); if (error) throw error }, onSuccess: inv, onError: (e) => alert((e as Error).message) })
+  const addRem = useMutation({ mutationFn: async ({ jid, inc }: { jid: string; inc: boolean }) => { const { error } = await supabase.rpc('inscrever_jogador_serie', { p_serie_id: serieId, p_jogador_id: jid, p_incluir: inc }); if (error) throw error }, onSuccess: () => { setAddId(''); inv() }, onError: (e) => alert((e as Error).message) })
+  const abrir = useMutation({ mutationFn: async () => { const { error } = await supabase.rpc('abrir_draft', { p_serie_id: serieId }); if (error) throw error }, onSuccess: inv, onError: (e) => alert((e as Error).message) })
+  const salvarNomes = useMutation({ mutationFn: async () => { const { error } = await supabase.rpc('definir_nomes_times', { p_serie_id: serieId, p_nome_a: na || null, p_nome_b: nb || null }); if (error) throw error }, onSuccess: inv, onError: (e) => alert((e as Error).message) })
+
+  const timeCap = (jid: string) => jid === s.capitao_a ? nomeA : jid === s.capitao_b ? nomeB : null
+
+  return (
+    <div>
+      <button className="btn btn-ghost" style={{ marginBottom: 10, padding: '4px 8px' }} onClick={onVoltar}><ArrowLeft size={16} /> Voltar</button>
+      <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 2px' }}>{s.nome || 'Série'} · inscrições abertas</h1>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 14px' }}>
+        {s.inscricao_ate ? <>Prazo: <b style={{ color: prazoPassou ? 'var(--danger)' : 'var(--text)' }}>{new Date(s.inscricao_ate).toLocaleString('pt-BR')}</b>{prazoPassou ? ' (encerrado)' : ''}</> : 'Marque quem vai participar.'}
+      </p>
+
+      {(podeGerir || souCapitao) && (
+        <div className="card" style={{ padding: 12, marginBottom: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div><label className="label">Nome do {nomeA}</label><input className="input" style={{ width: 150 }} value={na} onChange={(e) => setNa(e.target.value)} /></div>
+          <div><label className="label">Nome do {nomeB}</label><input className="input" style={{ width: 150 }} value={nb} onChange={(e) => setNb(e.target.value)} /></div>
+          <button className="btn btn-outline" onClick={() => salvarNomes.mutate()}>Salvar nomes</button>
+        </div>
+      )}
+
+      {!souCapitao && meuId && !prazoPassou && (
+        <button className={'btn ' + (souInscrito ? 'btn-outline' : 'btn-primary')} style={{ marginBottom: 14 }} disabled={participar.isPending}
+          onClick={() => participar.mutate(!souInscrito)}>
+          {souInscrito ? '✓ Estou dentro — sair da série' : 'Vou participar!'}
+        </button>
+      )}
+      {souCapitao && <div className="badge" style={{ background: 'rgba(245,197,24,.15)', color: '#f5c518', marginBottom: 14 }}><Crown size={13} /> Você é capitão (já inscrito)</div>}
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-hint)', textTransform: 'uppercase', margin: '0 0 8px' }}>Inscritos ({js.length})</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 16 }}>
+        {js.sort((a, b) => apel(a.jogador).localeCompare(apel(b.jogador))).map((x) => (
+          <div key={x.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-elev)', borderRadius: 7, padding: '7px 10px', fontSize: 14, color: 'var(--text)' }}>
+            {timeCap(x.jogador_id) && <Crown size={13} color="#f5c518" />}
+            <span style={{ flex: 1 }}>{apel(x.jogador)}{timeCap(x.jogador_id) ? <span style={{ color: 'var(--text-hint)', fontSize: 11 }}> · capitão {timeCap(x.jogador_id)}</span> : ''}</span>
+            <Niv n={x.jogador?.nivel_tecnico} />
+            {podeGerir && x.jogador_id !== s.capitao_a && x.jogador_id !== s.capitao_b && (
+              <button className="btn btn-ghost" style={{ padding: 3 }} title="Remover" onClick={() => addRem.mutate({ jid: x.jogador_id, inc: false })}><X size={14} /></button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {podeGerir && (
+        <div className="card" style={{ padding: 12 }}>
+          <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 8, fontSize: 13 }}>Comissão</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            <select className="input" style={{ flex: 1, minWidth: 160 }} value={addId} onChange={(e) => setAddId(e.target.value)}>
+              <option value="">Adicionar quem não marcou…</option>
+              {naoInscritos.map((j) => <option key={j.id} value={j.id}>{apel(j)}</option>)}
+            </select>
+            <button className="btn btn-outline" disabled={!addId} onClick={() => addRem.mutate({ jid: addId, inc: true })}>Adicionar</button>
+          </div>
+          <button className="btn btn-primary" style={{ width: '100%' }} disabled={js.length < 2} onClick={() => { if (confirm('Encerrar inscrições e abrir o draft?')) abrir.mutate() }}>Abrir o draft</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ============ Criar série ============ */
 function CriarSerie({ orgId, onClose, onCriada }: { orgId: string; onClose: () => void; onCriada: (id: string) => void }) {
   const [nome, setNome] = useState('')
   const [formato, setFormato] = useState(3)
+  const [nomeA, setNomeA] = useState('')
+  const [nomeB, setNomeB] = useState('')
+  const [prazo, setPrazo] = useState('')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [capA, setCapA] = useState('')
   const [capB, setCapB] = useState('')
@@ -277,6 +364,7 @@ function CriarSerie({ orgId, onClose, onCriada }: { orgId: string; onClose: () =
       const { data, error } = await supabase.rpc('criar_serie', {
         p_org_id: orgId, p_partida_id: null, p_nome: nome || null, p_formato: formato,
         p_capitao_a: capA, p_capitao_b: capB, p_jogadores: Array.from(ids),
+        p_nome_a: nomeA || null, p_nome_b: nomeB || null, p_inscricao_ate: prazo ? new Date(prazo).toISOString() : null,
       })
       if (error) throw error
       return data as string
@@ -298,9 +386,14 @@ function CriarSerie({ orgId, onClose, onCriada }: { orgId: string; onClose: () =
             <div><label className="label">Nome (opcional)</label><input className="input" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Pelada de sábado" /></div>
             <div><label className="label">Melhor de</label><select className="input" value={formato} onChange={(e) => setFormato(+e.target.value)}><option value={1}>1</option><option value={3}>3</option><option value={5}>5</option></select></div>
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><label className="label">Nome do Time A</label><input className="input" value={nomeA} onChange={(e) => setNomeA(e.target.value)} placeholder="Ex.: Caveiras" /></div>
+            <div><label className="label">Nome do Time B</label><input className="input" value={nomeB} onChange={(e) => setNomeB(e.target.value)} placeholder="Ex.: Fantasmas" /></div>
+          </div>
+          <div><label className="label">Prazo da inscrição (opcional)</label><input className="input" type="datetime-local" value={prazo} onChange={(e) => setPrazo(e.target.value)} /></div>
           <div>
-            <label className="label">Jogadores do dia ({sel.size})</label>
-            <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border-strong)', borderRadius: 8, padding: 6 }}>
+            <label className="label">Pré-inscritos (opcional — os demais se inscrevem depois) ({sel.size})</label>
+            <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--border-strong)', borderRadius: 8, padding: 6 }}>
               {(jogs || []).map((j) => (
                 <label key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 6px', cursor: 'pointer', fontSize: 14, color: 'var(--text)' }}>
                   <input type="checkbox" checked={sel.has(j.id)} onChange={() => toggle(j.id)} />
@@ -317,8 +410,8 @@ function CriarSerie({ orgId, onClose, onCriada }: { orgId: string; onClose: () =
               <select className="input" value={capB} onChange={(e) => setCapB(e.target.value)}><option value="">—</option>{selecionados.map((j) => <option key={j.id} value={j.id}>{apel(j)}</option>)}</select></div>
           </div>
           {erro && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{erro}</div>}
-          <button className="btn btn-primary" disabled={criar.isPending || sel.size < 2} onClick={() => criar.mutate()}>{criar.isPending ? 'Criando…' : 'Criar e iniciar draft'}</button>
-          <p style={{ fontSize: 11.5, color: 'var(--text-hint)', margin: 0 }}>Os capitães já entram nos seus times. Depois, cada um escolhe no próprio celular, alternadamente.</p>
+          <button className="btn btn-primary" disabled={criar.isPending || !capA || !capB} onClick={() => criar.mutate()}>{criar.isPending ? 'Criando…' : 'Criar e abrir inscrições'}</button>
+          <p style={{ fontSize: 11.5, color: 'var(--text-hint)', margin: 0 }}>A série abre em <b>inscrição</b>: os jogadores marcam se vão participar (até o prazo). Depois a comissão abre o <b>draft</b> e os capitães escolhem.</p>
         </div>
       </div>
     </>
