@@ -1,0 +1,17 @@
+import { createClient } from '@supabase/supabase-js'
+
+const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
+const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+/** true quando as variáveis de ambiente do Supabase estão configuradas. */
+export const supabaseConfigurado = Boolean(url && anon)
+
+/**
+ * Cliente Supabase. Se o .env ainda não estiver preenchido, criamos um cliente
+ * "placeholder" só para o app carregar — a tela mostra um aviso de configuração.
+ */
+export const supabase = createClient(
+  url || 'https://placeholder.supabase.co',
+  anon || 'placeholder-anon-key',
+  { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } },
+)
