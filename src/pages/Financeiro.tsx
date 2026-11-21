@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Send, X, CheckCircle2, Ban } from 'lucide-react'
+import { Plus, Trash2, Send, X, CheckCircle2, Ban, FileText, FileSpreadsheet } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
+import { exportarPDF, exportarExcel } from '../lib/report'
 import type { Organizacao } from '../lib/types'
 
 const brl = (n: number | null | undefined) => (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -82,9 +83,9 @@ function StatusBadge({ s }: { s: string }) {
 
 /* ===================== Gestão (admin/tesoureiro/comissão) ===================== */
 function Gestao({ orgId, org, podeGerir }: { orgId: string; org?: Organizacao; podeGerir: boolean }) {
-  const [aba, setAba] = useState<'resumo' | 'mensalidades' | 'lancamentos' | 'config'>('mensalidades')
+  const [aba, setAba] = useState<'resumo' | 'mensalidades' | 'lancamentos' | 'relatorios' | 'config'>('mensalidades')
   const abas = [
-    ['resumo', 'Resumo'], ['mensalidades', 'Mensalidades'], ['lancamentos', 'Receitas / Despesas'], ['config', 'Configuração'],
+    ['resumo', 'Resumo'], ['mensalidades', 'Mensalidades'], ['lancamentos', 'Receitas / Despesas'], ['relatorios', 'Relatórios'], ['config', 'Configuração'],
   ] as const
   return (
     <div>
@@ -97,6 +98,7 @@ function Gestao({ orgId, org, podeGerir }: { orgId: string; org?: Organizacao; p
       {aba === 'resumo' && <Resumo orgId={orgId} />}
       {aba === 'mensalidades' && <Mensalidades orgId={orgId} org={org} podeGerir={podeGerir} />}
       {aba === 'lancamentos' && <Lancamentos orgId={orgId} podeGerir={podeGerir} />}
+      {aba === 'relatorios' && <Relatorios orgId={orgId} grupo={org?.nome} />}
       {aba === 'config' && <Config orgId={orgId} org={org} podeGerir={podeGerir} />}
     </div>
   )
@@ -349,6 +351,74 @@ function Config({ orgId, org, podeGerir }: { orgId: string; org?: Organizacao; p
         <div><label className="label">Banco</label><input className="input" value={f.banco} onChange={(e) => setF({ ...f, banco: e.target.value })} placeholder="C6 Bank" /></div>
         {msg && <div style={{ fontSize: 13, color: msg === 'Salvo!' ? 'var(--grass-light)' : 'var(--danger)' }}>{msg}</div>}
         <button className="btn btn-primary" disabled={salvar.isPending} onClick={() => salvar.mutate()}>{salvar.isPending ? 'Salvando…' : 'Salvar'}</button>
+      </div>
+    </div>
+  )
+}
+
+/* ===================== Relatórios ===================== */
+const ST_LABEL: Record<string, string> = { aberta: 'Em aberto', parcial: 'Parcial', paga: 'Paga', isenta: 'Isenta', cancelada: 'Cancelada' }
+
+function Relatorios({ orgId, grupo }: { orgId: string; grupo?: string }) {
+  const [mes, setMes] = useState(mesAtual())
+  const { data: mens } = useQuery({
+    queryKey: ['rel-mens', orgId, mes], enabled: !!orgId,
+    queryFn: async (): Promise<Mensalidade[]> => ((await supabase.from('mensalidades').select('*, jogador:jogadores(nome,apelido,telefone)').eq('org_id', orgId).eq('competencia', compDate(mes))).data as Mensalidade[] || [])
+      .sort((a, b) => (a.jogador?.nome || '').localeCompare(b.jogador?.nome || '')),
+  })
+  const { data: lanc } = useQuery({
+    queryKey: ['rel-lanc', orgId], enabled: !!orgId,
+    queryFn: async (): Promise<Lancamento[]> => (await supabase.from('lancamentos').select('*').eq('org_id', orgId).order('data', { ascending: false })).data as Lancamento[] || [],
+  })
+
+  const periodo = 'Competência ' + labelMes(compDate(mes))
+  const nomeJ = (m: Mensalidade) => m.jogador?.apelido || m.jogador?.nome || '—'
+
+  function linhasMens(lista: Mensalidade[]) {
+    return lista.map((m) => ({
+      Jogador: nomeJ(m), Valor: brl(m.valor - m.desconto), Pago: brl(m.valor_pago),
+      Resta: brl(Math.max(0, m.valor - m.desconto - m.valor_pago)), Situação: ST_LABEL[m.status] || m.status,
+    }))
+  }
+  function bodyMens(lista: Mensalidade[]) {
+    return lista.map((m) => [nomeJ(m), brl(m.valor - m.desconto), brl(m.valor_pago), brl(Math.max(0, m.valor - m.desconto - m.valor_pago)), ST_LABEL[m.status] || m.status])
+  }
+
+  const relatorios = [
+    {
+      key: 'mens', nome: 'Mensalidades do mês', desc: 'Todos os jogadores, valor, pago e situação.',
+      pdf: () => exportarPDF({ arquivo: `mensalidades_${mes}`, titulo: 'Mensalidades', grupo, periodo, secoes: [{ titulo: 'Mensalidades', head: ['Jogador', 'Valor', 'Pago', 'Resta', 'Situação'], body: bodyMens(mens || []) }] }),
+      xlsx: () => exportarExcel(`mensalidades_${mes}`, [{ nome: 'Mensalidades', linhas: linhasMens(mens || []) }]),
+    },
+    {
+      key: 'inad', nome: 'Inadimplentes', desc: 'Somente quem está em aberto ou parcial no mês.',
+      pdf: () => { const l = (mens || []).filter((m) => m.status === 'aberta' || m.status === 'parcial'); exportarPDF({ arquivo: `inadimplentes_${mes}`, titulo: 'Inadimplentes', grupo, periodo, secoes: [{ titulo: 'Em aberto', head: ['Jogador', 'Valor', 'Pago', 'Resta', 'Situação'], body: bodyMens(l) }] }) },
+      xlsx: () => { const l = (mens || []).filter((m) => m.status === 'aberta' || m.status === 'parcial'); exportarExcel(`inadimplentes_${mes}`, [{ nome: 'Inadimplentes', linhas: linhasMens(l) }]) },
+    },
+    {
+      key: 'ext', nome: 'Extrato (receitas/despesas)', desc: 'Todos os lançamentos do grupo.',
+      pdf: () => exportarPDF({ arquivo: 'extrato', titulo: 'Extrato financeiro', grupo, secoes: [{ titulo: 'Lançamentos', head: ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor'], body: (lanc || []).map((l) => [new Date(l.data).toLocaleDateString('pt-BR'), l.tipo === 'receita' ? 'Receita' : 'Despesa', l.categoria || '', l.descricao || '', (l.tipo === 'receita' ? '+ ' : '− ') + brl(l.valor)]) }] }),
+      xlsx: () => exportarExcel('extrato', [{ nome: 'Extrato', linhas: (lanc || []).map((l) => ({ Data: l.data, Tipo: l.tipo, Categoria: l.categoria || '', Descrição: l.descricao || '', Valor: l.valor })) }]),
+    },
+  ]
+
+  return (
+    <div>
+      <div style={{ marginBottom: 14 }}>
+        <label className="label">Mês de referência</label>
+        <input className="input" type="month" value={mes} onChange={(e) => setMes(e.target.value)} style={{ width: 160 }} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 12 }}>
+        {relatorios.map((r) => (
+          <div key={r.key} className="card" style={{ padding: 16 }}>
+            <div style={{ fontWeight: 700, color: 'var(--text)' }}>{r.nome}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-hint)', margin: '4px 0 12px' }}>{r.desc}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={r.pdf}><FileText size={15} /> PDF</button>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={r.xlsx}><FileSpreadsheet size={15} /> Excel</button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )
