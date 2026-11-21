@@ -3,10 +3,12 @@ import { useAuth } from './lib/auth'
 import { Splash } from './components/Splash'
 import { ConfigAviso } from './components/ConfigAviso'
 import { ProtectedLayout } from './components/ProtectedLayout'
+import { JogadorLayout } from './components/JogadorLayout'
 import Login from './pages/Login'
 import Cadastro from './pages/Cadastro'
 import RecuperarSenha from './pages/RecuperarSenha'
 import Dashboard from './pages/Dashboard'
+import JogadorHome from './pages/JogadorHome'
 import Jogadores from './pages/Jogadores'
 import Membros from './pages/Membros'
 import Financeiro from './pages/Financeiro'
@@ -17,7 +19,8 @@ import Grupos from './pages/Grupos'
 import SemGrupo from './pages/SemGrupo'
 
 export default function App() {
-  const { carregando, session, configurado } = useAuth()
+  const { carregando, session, configurado, usuario, membroAtual } = useAuth()
+  const gestor = !!usuario?.super_admin || (!!membroAtual && membroAtual.papel !== 'jogador')
 
   if (!configurado) return <ConfigAviso />
   if (carregando) return <Splash />
@@ -36,8 +39,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/sem-grupo" element={<SemGrupo />} />
-      <Route element={<ProtectedLayout />}>
-        <Route index element={<Dashboard />} />
+      <Route element={gestor ? <ProtectedLayout /> : <JogadorLayout />}>
+        <Route index element={gestor ? <Dashboard /> : <JogadorHome />} />
         <Route path="jogadores" element={<Jogadores />} />
         <Route path="membros" element={<Membros />} />
         <Route path="financeiro" element={<Financeiro />} />
