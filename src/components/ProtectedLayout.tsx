@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, UserCheck, Building2, LogOut, Menu, X, ShieldCheck,
-  Users, Wallet, CalendarDays, Trophy, UserCog,
+  Users, Wallet, CalendarDays, Trophy, UserCog, Swords,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { PAPEL_LABEL } from '../lib/types'
@@ -24,6 +24,7 @@ const ITENS: Item[] = [
   { to: '/jogadores', label: 'Jogadores', icon: Users },
   { to: '/financeiro', label: 'Financeiro', icon: Wallet },
   { to: '/partidas', label: 'Partidas', icon: CalendarDays },
+  { to: '/series', label: 'Séries', icon: Swords },
   { to: '/rankings', label: 'Rankings', icon: Trophy, emBreve: true },
   { to: '/grupos', label: 'Grupos (plataforma)', icon: Building2, soSuper: true },
 ]
