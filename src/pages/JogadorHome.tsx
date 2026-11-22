@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Check, CircleSlash, MapPin, Clock, Wallet, Swords, ChevronRight } from 'lucide-react'
+import { Check, CircleSlash, MapPin, Clock, Wallet, Swords, Megaphone, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 
@@ -89,6 +89,13 @@ export default function JogadorHome() {
           <div style={{ fontSize: 20, fontWeight: 800, color: aberto > 0 ? 'var(--warn)' : 'var(--grass-light)' }}>{brl(aberto)}</div>
           {aberto > 0 && org?.pix_chave && <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Pix: {org.pix_chave}</div>}
         </div>
+        <ChevronRight size={18} color="var(--text-hint)" />
+      </button>
+
+      {/* Mural */}
+      <button className="card" onClick={() => navigate('/mural')} style={{ padding: 14, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--bg-elev)', display: 'grid', placeItems: 'center' }}><Megaphone size={20} color="var(--grass-light)" /></div>
+        <div style={{ flex: 1 }}><div style={{ fontWeight: 700, color: 'var(--text)' }}>Mural & avisos</div><div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Novidades do grupo e aniversariantes</div></div>
         <ChevronRight size={18} color="var(--text-hint)" />
       </button>
 
