@@ -18,7 +18,7 @@ function blankJogador(orgId: string): Jogador {
   return {
     id: '', org_id: orgId, user_id: null, nome: '', apelido: null, foto_url: null, telefone: null,
     nascimento: null, posicao_principal: null, posicao_secundaria: null, pe_dominante: null,
-    nivel_tecnico: null, situacao: 'ativo', data_entrada: null, obs: null,
+    nivel_tecnico: null, situacao: 'ativo', data_entrada: null, obs: null, isento: false, mensalidade_valor: null,
   }
 }
 
@@ -98,7 +98,7 @@ export default function Jogadores() {
                 <div style={{ fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {j.apelido || j.nome}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-hint)', marginBottom: 4 }}>{posLabel(j.posicao_principal)}{j.situacao === 'inativo' ? ' · inativo' : ''}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-hint)', marginBottom: 4 }}>{posLabel(j.posicao_principal)}{j.situacao === 'inativo' ? ' · inativo' : ''}{j.isento ? ' · 🆓 isento' : ''}</div>
                 <Estrelas n={j.nivel_tecnico} />
               </div>
             </button>
@@ -130,6 +130,8 @@ function Avatar({ j, size }: { j: Jogador; size: number }) {
 function JogadorDrawer({ jogador, podeGerir, souEu, onClose }: { jogador: Jogador; podeGerir: boolean; souEu: boolean; onClose: () => void }) {
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
+  const { temPapel } = useAuth()
+  const podeFin = temPapel('admin_geral', 'comissao', 'tesoureiro')
   const podeEditar = podeGerir || souEu
   const novo = !jogador.id
   const [f, setF] = useState<Jogador>(jogador)
@@ -149,11 +151,13 @@ function JogadorDrawer({ jogador, podeGerir, souEu, onClose }: { jogador: Jogado
       if (novo) {
         const { error } = await supabase.from('jogadores').insert({
           ...base, org_id: jogador.org_id, nivel_tecnico: f.nivel_tecnico, situacao: f.situacao,
+          ...(podeFin ? { isento: f.isento, mensalidade_valor: f.mensalidade_valor } : {}),
         })
         if (error) throw error
       } else {
         const payload: Partial<Jogador> = { ...base, foto_url: f.foto_url }
         if (podeGerir) { payload.nivel_tecnico = f.nivel_tecnico; payload.situacao = f.situacao }
+        if (podeFin) { payload.isento = f.isento; payload.mensalidade_valor = f.mensalidade_valor }
         const { error } = await supabase.from('jogadores').update(payload).eq('id', f.id)
         if (error) throw error
       }
@@ -254,6 +258,22 @@ function JogadorDrawer({ jogador, podeGerir, souEu, onClose }: { jogador: Jogado
                 </div>
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-hint)', marginTop: 8 }}>O nível técnico (estrelas, acima) só a comissão ajusta.</div>
+            </div>
+          )}
+
+          {podeFin && (
+            <div className="card" style={{ padding: 12, background: 'var(--bg-elev)' }}>
+              <div className="label" style={{ marginBottom: 8 }}>Financeiro</div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, color: 'var(--text)', fontSize: 14 }}>
+                <input type="checkbox" checked={!!f.isento} onChange={(e) => set('isento', e.target.checked)} /> Isento de mensalidade
+              </label>
+              <div style={{ marginTop: 10 }}>
+                <label className="label">Mensalidade individual (R$) — opcional</label>
+                <input className="input" value={f.mensalidade_valor ?? ''} disabled={!!f.isento}
+                  onChange={(e) => set('mensalidade_valor', e.target.value ? Number(e.target.value.replace(',', '.')) : null)}
+                  placeholder="em branco = valor padrão do grupo" />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-hint)', marginTop: 8 }}>Isento <b>não gera cobrança</b> (ex.: goleiro, juiz, ou decisão do grupo). O valor individual sobrepõe o padrão.</div>
             </div>
           )}
 

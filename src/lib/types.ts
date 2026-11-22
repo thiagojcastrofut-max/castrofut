@@ -69,4 +69,6 @@ export interface Jogador {
   situacao: 'ativo' | 'inativo'
   data_entrada: string | null
   obs: string | null
+  isento?: boolean
+  mensalidade_valor?: number | null
 }
