@@ -1,7 +1,16 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, X, Clock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
+
+const FUNCOES = [
+  { v: 'jogador', l: 'Jogador (sem cargo)' },
+  { v: 'comissao', l: 'Comissão' },
+  { v: 'tesoureiro', l: 'Tesoureiro' },
+  { v: 'juiz', l: 'Juiz' },
+  { v: 'admin_geral', l: 'Administrador Geral' },
+]
 
 interface Pendente {
   membro_id: string
@@ -17,6 +26,8 @@ export default function Aprovacoes() {
   const { orgId, temPapel } = useAuth()
   const qc = useQueryClient()
   const podeAprovar = temPapel('admin_geral', 'comissao')
+  const podeAdmin = temPapel('admin_geral') // super incluso
+  const [papeis, setPapeis] = useState<Record<string, string>>({})
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['cadastros_pendentes', orgId],
@@ -29,12 +40,17 @@ export default function Aprovacoes() {
   })
 
   const decidir = useMutation({
-    mutationFn: async ({ membroId, aprovar }: { membroId: string; aprovar: boolean }) => {
-      const fn = aprovar ? 'aprovar_membro' : 'recusar_membro'
-      const { error } = await supabase.rpc(fn, { p_membro_id: membroId })
-      if (error) throw error
+    mutationFn: async ({ membroId, aprovar, papel }: { membroId: string; aprovar: boolean; papel?: string }) => {
+      if (aprovar) {
+        const { error } = await supabase.rpc('aprovar_membro', { p_membro_id: membroId, p_papel: papel || 'jogador' })
+        if (error) throw error
+      } else {
+        const { error } = await supabase.rpc('recusar_membro', { p_membro_id: membroId })
+        if (error) throw error
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cadastros_pendentes', orgId] }),
+    onError: (e) => alert((e as Error).message),
   })
 
   if (!podeAprovar) return <Aviso texto="Você não tem permissão para aprovar cadastros." />
@@ -43,7 +59,7 @@ export default function Aprovacoes() {
     <div>
       <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '0 0 2px' }}>Aprovações de cadastro</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 18px' }}>
-        Valide os jogadores que solicitaram acesso ao grupo.
+        Valide quem solicitou acesso — e já defina a <b>função</b> (comissão, tesoureiro, juiz…) ao aprovar.
       </p>
 
       {isLoading && <Aviso texto="Carregando…" />}
@@ -65,8 +81,12 @@ export default function Aprovacoes() {
                 </span>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-primary" disabled={decidir.isPending} onClick={() => decidir.mutate({ membroId: p.membro_id, aprovar: true })}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <select className="input" style={{ width: 'auto', minWidth: 150 }} title="Função ao aprovar"
+                value={papeis[p.membro_id] || 'jogador'} onChange={(e) => setPapeis((s) => ({ ...s, [p.membro_id]: e.target.value }))}>
+                {FUNCOES.filter((f) => podeAdmin || f.v !== 'admin_geral').map((f) => <option key={f.v} value={f.v}>{f.l}</option>)}
+              </select>
+              <button className="btn btn-primary" disabled={decidir.isPending} onClick={() => decidir.mutate({ membroId: p.membro_id, aprovar: true, papel: papeis[p.membro_id] || 'jogador' })}>
                 <Check size={16} /> Aprovar
               </button>
               <button className="btn btn-outline" disabled={decidir.isPending} onClick={() => decidir.mutate({ membroId: p.membro_id, aprovar: false })}>
