@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, UserCheck, Building2, LogOut, Menu, X, ShieldCheck,
-  Users, Wallet, CalendarDays, Trophy, UserCog, Swords, Shuffle, Megaphone,
+  Users, Wallet, CalendarDays, Trophy, UserCog, Swords, Shuffle, Megaphone, Award,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { PAPEL_LABEL } from '../lib/types'
@@ -28,6 +28,7 @@ const ITENS: Item[] = [
   { to: '/series', label: 'Séries', icon: Swords },
   { to: '/sorteio', label: 'Sorteio', icon: Shuffle, papeis: ['admin_geral', 'comissao'] },
   { to: '/rankings', label: 'Rankings', icon: Trophy },
+  { to: '/premiacoes', label: 'Premiações', icon: Award },
   { to: '/grupos', label: 'Grupos (plataforma)', icon: Building2, soSuper: true },
 ]
 

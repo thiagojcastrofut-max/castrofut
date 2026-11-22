@@ -17,6 +17,7 @@ import Series from './pages/Series'
 import Rankings from './pages/Rankings'
 import Sorteio from './pages/Sorteio'
 import Mural from './pages/Mural'
+import Premiacoes from './pages/Premiacoes'
 import Aprovacoes from './pages/Aprovacoes'
 import Grupos from './pages/Grupos'
 import SemGrupo from './pages/SemGrupo'
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="rankings" element={<Rankings />} />
         <Route path="sorteio" element={<Sorteio />} />
         <Route path="mural" element={<Mural />} />
+        <Route path="premiacoes" element={<Premiacoes />} />
         <Route path="aprovacoes" element={<Aprovacoes />} />
         <Route path="grupos" element={<Grupos />} />
       </Route>

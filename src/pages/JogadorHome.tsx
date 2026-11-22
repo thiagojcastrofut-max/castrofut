@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Check, CircleSlash, MapPin, Clock, Wallet, Swords, Megaphone, ChevronRight } from 'lucide-react'
+import { Check, CircleSlash, MapPin, Clock, Wallet, Swords, Megaphone, Award, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 
@@ -96,6 +96,13 @@ export default function JogadorHome() {
       <button className="card" onClick={() => navigate('/mural')} style={{ padding: 14, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--bg-elev)', display: 'grid', placeItems: 'center' }}><Megaphone size={20} color="var(--grass-light)" /></div>
         <div style={{ flex: 1 }}><div style={{ fontWeight: 700, color: 'var(--text)' }}>Mural & avisos</div><div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Novidades do grupo e aniversariantes</div></div>
+        <ChevronRight size={18} color="var(--text-hint)" />
+      </button>
+
+      {/* Premiações */}
+      <button className="card" onClick={() => navigate('/premiacoes')} style={{ padding: 14, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(245,197,24,.15)', display: 'grid', placeItems: 'center' }}><Award size={20} color="#f5c518" /></div>
+        <div style={{ flex: 1 }}><div style={{ fontWeight: 700, color: 'var(--text)' }}>Premiações</div><div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Galeria dos campeões</div></div>
         <ChevronRight size={18} color="var(--text-hint)" />
       </button>
 
