@@ -7,6 +7,7 @@ interface Estat {
   jogador_id: string; nome: string; apelido: string | null; foto_url: string | null; posicao_principal: string | null
   presencas: number; gols: number; assistencias: number; amarelos: number; azuis: number; vermelhos: number
 }
+interface GK { jogador_id: string; nome: string; apelido: string | null; foto_url: string | null; jogos: number; gols_sofridos: number; sem_sofrer: number }
 const apel = (e: Estat) => e.apelido || e.nome
 const inic = (e: Estat) => e.nome.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('')
 const medal = (i: number) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`
@@ -21,9 +22,14 @@ export default function Rankings() {
     queryKey: ['meu-jogador', orgId], enabled: !!orgId && !!usuario,
     queryFn: async () => (await supabase.from('jogadores').select('id').eq('org_id', orgId).eq('user_id', usuario!.id).maybeSingle()).data as { id: string } | null,
   })
+  const { data: gks } = useQuery({
+    queryKey: ['goleiros', orgId], enabled: !!orgId,
+    queryFn: async (): Promise<GK[]> => (await supabase.from('vw_goleiros').select('*').eq('org_id', orgId)).data as GK[] || [],
+  })
   const lista = data || []
   const minha = lista.find((e) => e.jogador_id === meu?.id)
   const cartoes = (e: Estat) => e.amarelos + e.azuis + e.vermelhos
+  const goleiros = [...(gks || [])].sort((a, b) => (a.gols_sofridos / Math.max(a.jogos, 1)) - (b.gols_sofridos / Math.max(b.jogos, 1)))
 
   return (
     <div>
@@ -48,6 +54,31 @@ export default function Rankings() {
         <Quadro titulo="Presença" icon={CalendarCheck} dados={[...lista].filter((e) => e.presencas > 0).sort((a, b) => b.presencas - a.presencas)} valor={(e) => e.presencas} sufixo="jogos" />
         <Quadro titulo="Cartões" icon={ShieldAlert} dados={[...lista].filter((e) => cartoes(e) > 0).sort((a, b) => cartoes(b) - cartoes(a))} valor={cartoes} sufixo="cartões" />
       </div>
+
+      {goleiros.length > 0 && (
+        <div className="card" style={{ padding: 16, marginTop: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}><span style={{ fontSize: 18 }}>🧤</span><b style={{ color: 'var(--text)' }}>Goleiros</b></div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead><tr style={{ color: 'var(--text-hint)', fontSize: 11, textAlign: 'right' }}>
+                <th style={{ textAlign: 'left', padding: '4px 6px' }}>Goleiro</th><th style={{ padding: '4px 6px' }}>Jogos</th><th style={{ padding: '4px 6px' }}>Sofridos</th><th style={{ padding: '4px 6px' }}>Média</th><th style={{ padding: '4px 6px' }}>S/ sofrer</th>
+              </tr></thead>
+              <tbody>
+                {goleiros.map((g, i) => (
+                  <tr key={g.jogador_id} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td style={{ padding: '7px 6px', color: 'var(--text)', fontWeight: i === 0 ? 700 : 500 }}>{i === 0 ? '🥇 ' : ''}{g.apelido || g.nome}</td>
+                    <td style={{ padding: '7px 6px', textAlign: 'right' }}>{g.jogos}</td>
+                    <td style={{ padding: '7px 6px', textAlign: 'right' }}>{g.gols_sofridos}</td>
+                    <td style={{ padding: '7px 6px', textAlign: 'right', color: 'var(--grass-light)', fontWeight: 700 }}>{(g.gols_sofridos / Math.max(g.jogos, 1)).toFixed(1)}</td>
+                    <td style={{ padding: '7px 6px', textAlign: 'right' }}>{g.sem_sofrer}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-hint)', marginTop: 8 }}>Marque o goleiro de cada time na súmula da partida para alimentar estes números.</div>
+        </div>
+      )}
 
       {lista.length === 0 && <div className="card" style={{ padding: 16, color: 'var(--text-muted)', marginTop: 14 }}>Ainda sem dados. As estatísticas aparecem conforme as partidas são registradas.</div>}
     </div>

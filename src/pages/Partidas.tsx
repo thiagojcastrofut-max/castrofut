@@ -124,7 +124,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
 function Vazio({ t }: { t: string }) { return <div className="card" style={{ padding: 16, color: 'var(--text-muted)', fontSize: 14 }}>{t}</div> }
 
 interface Evento { id: string; jogador_id: string | null; equipe: string | null; tipo: string; minuto: number | null; jogador?: { nome: string; apelido: string | null } }
-const EV_ICON: Record<string, string> = { gol: '⚽', assistencia: '👟', cartao_azul: '🟦', cartao_amarelo: '🟨', cartao_vermelho: '🟥' }
+const EV_ICON: Record<string, string> = { gol: '⚽', assistencia: '👟', cartao_azul: '🟦', cartao_amarelo: '🟨', cartao_vermelho: '🟥', goleiro: '🧤' }
 
 function DetalhePartida({ p, podeGerir, onEditar, onClose, orgId }: { p: Partida; podeGerir: boolean; onEditar: () => void; onClose: () => void; orgId: string }) {
   const qc = useQueryClient()
@@ -224,7 +224,7 @@ function Sumula({ jogs, onReg }: { jogs: { id: string; nome: string; apelido: st
   const [jid, setJid] = useState('')
   const [equipe, setEquipe] = useState<'a' | 'b'>('a')
   const [minuto, setMinuto] = useState('')
-  const tipos = [['gol', '⚽ Gol'], ['assistencia', '👟 Assist.'], ['cartao_azul', '🟦 Azul'], ['cartao_amarelo', '🟨 Amarelo'], ['cartao_vermelho', '🟥 Vermelho']] as const
+  const tipos = [['gol', '⚽ Gol'], ['assistencia', '👟 Assist.'], ['cartao_azul', '🟦 Azul'], ['cartao_amarelo', '🟨 Amarelo'], ['cartao_vermelho', '🟥 Vermelho'], ['goleiro', '🧤 Goleiro']] as const
   return (
     <div className="card" style={{ padding: 14, marginBottom: 16 }}>
       <div style={{ fontWeight: 700, color: 'var(--gold-light,var(--grass-light))', marginBottom: 10 }}>📋 Registrar (juiz)</div>
